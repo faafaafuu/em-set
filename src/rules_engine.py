@@ -54,7 +54,9 @@ def apply_rules(email: EmailMessage) -> Optional[ClassificationResult]:
     text_blob = f"{email.from_email} {email.subject} {email.snippet} {email.body}".lower()
 
     if settings.ALLOWED_SENDERS and email.from_email.lower() in [s.lower() for s in settings.ALLOWED_SENDERS]:
-        return ClassificationResult(label="important", confidence=0.9, reason="Sender in allowlist", rule_hit="allowlist")
+        if _sender_auth_pass(email):
+            return ClassificationResult(label="important", confidence=0.9, reason="Sender in allowlist (auth pass)", rule_hit="allowlist")
+        return ClassificationResult(label="manual_review", confidence=0.5, reason="Allowlist sender but auth not verified", rule_hit="allowlist_no_auth")
 
     if email.from_email.lower() in [s.lower() for s in settings.BLOCKED_SENDERS]:
         return ClassificationResult(label="junk", confidence=0.95, reason="Sender in blocklist", rule_hit="blocklist")
@@ -92,3 +94,11 @@ def safe_delete_allowed(email: EmailMessage) -> bool:
             return False
 
     return True
+
+
+def _sender_auth_pass(email: EmailMessage) -> bool:
+    # Trust only if SPF or DKIM (or DMARC) passed in Authentication-Results
+    auth = email.headers.get("Authentication-Results", "").lower()
+    if "dkim=pass" in auth or "spf=pass" in auth or "dmarc=pass" in auth:
+        return True
+    return False

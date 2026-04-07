@@ -43,7 +43,7 @@ def test_list_unsubscribe_rule():
 
 def test_allowlist_overrides(monkeypatch):
     monkeypatch.setattr(settings, "ALLOWED_SENDERS", ["vip@example.com"])
-    email = make_email(from_email="vip@example.com")
+    email = make_email(from_email="vip@example.com", headers={"Authentication-Results": "spf=pass dkim=pass"})
     result = rules_engine.apply_rules(email)
     assert result.label == "important"
 
