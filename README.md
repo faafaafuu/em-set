@@ -1,80 +1,52 @@
-﻿# Gmail AI Assistant
+﻿# Gmail AI Assistant (CLI)
 
-Полноценный локальный AI‑агент для Gmail: классификация писем, чистка мусора, отписка, уведомления и логирование. Работает по расписанию, есть API‑панель статуса, безопасный режим и DRY RUN.
+Минималистичный CLI‑агент для Gmail: авторизация при запуске, команды через диалог, без API и лишних конфиг‑файлов.
 
-## Возможности
-- Анализ входящих писем
+## Что умеет
 - Классификация: `important` / `useful` / `junk` / `manual_review`
 - Авто‑чистка мусора (архив/удаление/спам)
 - Авто‑отписка (List‑Unsubscribe)
 - Маркировка важных писем
-- Уведомления (Telegram/email/webhook)
-- Расписание (APScheduler)
-- Логи и история действий (SQLite)
-- Безопасный режим
+- Логи и история (SQLite)
+- Несколько Gmail‑аккаунтов
 
-## Быстрый старт (локально)
+## Быстрый старт
 1. Создайте проект в Google Cloud Console и включите Gmail API.
-2. Создайте OAuth Client (Desktop App), скачайте `credentials.json` в корень проекта.
-3. Скопируйте `.env.example` в `.env` и заполните значения.
-4. При первом запуске сервис попросит создать пользователя API и добавить Gmail‑аккаунты (данные сохраняются в `configs/users.json` и `configs/accounts.json`).
-4. Установите зависимости:
+2. Создайте OAuth Client (Desktop App), скачайте `credentials.json`.
+3. Установите зависимости:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-5. Запуск API:
-
-```bash
-uvicorn src.api:app --host 0.0.0.0 --port 8000
-```
-
-6. Запуск планировщика:
+4. Запуск:
 
 ```bash
 python -m src.main
 ```
 
-При первом запуске откроется окно авторизации Gmail OAuth (локальный redirect). Будет создан `token.json`.
+При первом запуске приложение попросит создать пользователя и добавить Gmail‑аккаунт(ы). Данные сохраняются в `data/email_assistant.db`.
 
-## Запуск через Docker
-```bash
-docker compose up --build
+## Команды CLI
 ```
-Сервис `api` — FastAPI, сервис `worker` — планировщик.
-
-## Настройки (.env)
-Ключевые параметры:
-- `CLEANUP_MODE` = `archive|delete|spam`
-- `DRY_RUN=true` — ничего не удаляет, только логирует
-- `SAFE_MODE=true` — отписка только логируется
-- `JUNK_CONFIDENCE_THRESHOLD` / `IMPORTANT_CONFIDENCE_THRESHOLD`
-- `ALLOWED_SENDERS`, `BLOCKED_SENDERS`, `PROTECTED_DOMAINS` (CSV)
-- `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` — базовая авторизация для API
-- `UNSUBSCRIBE_ALLOWLIST` — домены, на которые разрешена отписка
-- `BLOCK_PRIVATE_IPS=true` — блокирует приватные и link‑local IP для unsubscribe URL
+help
+accounts
+add-account
+scan [account|all]
+manual list
+manual keep <account> <email_id>
+manual junk <account> <email_id>
+stats
+exit
+```
 
 ## Безопасность
-Авто‑удаление применяется только к письмам с высокой уверенностью и без стоп‑слов. Важные категории никогда не удаляются автоматически.
-API защищено Basic Auth (пользователи хранятся в `configs/users.json`), внешние URLs для отписки проверяются на безопасность, LLM получает редактированные данные.
-
-## API
-- `GET /health`
-- `POST /run-scan`
-- `GET /emails/recent`
-- `GET /actions/logs`
-- `GET /stats`
-- `GET /rules`
-- `POST /rules/update`
-- `GET /manual-review`
-- `POST /manual-review/{id}/keep`
-- `POST /manual-review/{id}/junk`
+- DRY RUN включен по умолчанию в `src/config.py`
+- Авто‑удаление только для junk с высокой уверенностью
+- LLM получает редактированные данные
+- Unsubscribe URL проходит проверку безопасности
 
 ## Тесты
 ```bash
-pytest
+python -m pytest
 ```
-
-## Примеры писем
-См. `docs/sample_emails.md`.
