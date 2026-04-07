@@ -5,9 +5,8 @@ import logging
 import re
 from typing import Optional
 
-import httpx
-
 from .config import settings
+from .llm_client import ollama_chat
 from .models import EmailMessage, ClassificationResult
 from .rules_engine import apply_rules
 
@@ -44,46 +43,35 @@ def _classify_with_llm(email: EmailMessage) -> Optional[ClassificationResult]:
         body = _redact_pii(body)
         headers = _redact_headers(headers)
 
-    payload = {
-        "model": settings.LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": LLM_SYSTEM},
-            {
-                "role": "user",
-                "content": (
-                    "Classify email:\n"
-                    f"From: {email.from_email}\n"
-                    f"Subject: {email.subject}\n"
-                    f"Snippet: {email.snippet}\n"
-                    f"Body: {body}\n"
-                    f"Headers: {json.dumps(headers)[:2000]}\n"
-                    f"Labels: {email.labels}\n"
-                ),
-            },
-        ],
-        "temperature": 0.2,
-    }
-
-    headers = {"Authorization": f"Bearer {settings.LLM_API_KEY}"}
-    url = f"{settings.LLM_API_BASE}/chat/completions"
+    messages = [
+        {"role": "system", "content": LLM_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                "Classify email:\n"
+                f"From: {email.from_email}\n"
+                f"Subject: {email.subject}\n"
+                f"Snippet: {email.snippet}\n"
+                f"Body: {body}\n"
+                f"Headers: {json.dumps(headers)[:2000]}\n"
+                f"Labels: {email.labels}\n"
+            ),
+        },
+    ]
 
     for attempt in range(3):
         try:
-            with httpx.Client(timeout=20) as client:
-                resp = client.post(url, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                content = data["choices"][0]["message"]["content"]
-                parsed = json.loads(_extract_json(content))
-                label = str(parsed.get("label", "manual_review")).strip().lower()
-                if label not in {"important", "useful", "junk", "manual_review"}:
-                    label = "manual_review"
-                return ClassificationResult(
-                    label=label,
-                    confidence=float(parsed.get("confidence", 0.5)),
-                    reason=parsed.get("reason", "LLM"),
-                    llm_used=True,
-                )
+            content = ollama_chat(settings.OLLAMA_BASE_URL, settings.OLLAMA_MODEL, messages)
+            parsed = json.loads(_extract_json(content))
+            label = str(parsed.get("label", "manual_review")).strip().lower()
+            if label not in {"important", "useful", "junk", "manual_review"}:
+                label = "manual_review"
+            return ClassificationResult(
+                label=label,
+                confidence=float(parsed.get("confidence", 0.5)),
+                reason=parsed.get("reason", "LLM"),
+                llm_used=True,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM classify failed attempt %s: %s", attempt + 1, exc)
 
@@ -91,7 +79,6 @@ def _classify_with_llm(email: EmailMessage) -> Optional[ClassificationResult]:
 
 
 def _extract_json(text: str) -> str:
-    # If model returns extra text, try to isolate JSON object
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
@@ -100,7 +87,6 @@ def _extract_json(text: str) -> str:
 
 
 def _redact_pii(text: str) -> str:
-    # Redact emails and long numbers
     text = re.sub(r"[\w\.-]+@[\w\.-]+", "[redacted_email]", text)
     text = re.sub(r"\b\d{10,}\b", "[redacted_number]", text)
     return text

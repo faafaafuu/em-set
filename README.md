@@ -1,50 +1,38 @@
-﻿# Gmail AI Assistant (CLI)
+﻿# Gmail AI Assistant (Chat CLI + Ollama)
 
-Минималистичный CLI‑агент для Gmail: авторизация при запуске, команды через диалог, без API и лишних конфиг‑файлов.
+Диалоговый помощник для Gmail: общение как с LLM, но строго по почте. Работает локально через Ollama (Qwen).
 
-## Что умеет
-- Классификация: `important` / `useful` / `junk` / `manual_review`
-- Авто‑чистка мусора (архив/удаление/спам)
-- Авто‑отписка (List‑Unsubscribe)
-- Маркировка важных писем
-- Логи и история (SQLite)
-- Несколько Gmail‑аккаунтов
+## Требования
+- Установлен Ollama
+- Модель: `qwen2.5:7b` (или любая другая локальная)
 
-## Быстрый старт
-1. Создайте проект в Google Cloud Console и включите Gmail API.
-2. Создайте OAuth Client (Desktop App), скачайте `credentials.json`.
-3. Установите зависимости:
-
+Установка модели:
 ```bash
-pip install -r requirements.txt
+ollama pull qwen2.5:7b
 ```
 
-4. Запуск:
-
+## Запуск
 ```bash
+pip install -r requirements.txt
 python -m src.main
 ```
 
-При первом запуске приложение попросит создать пользователя и добавить Gmail‑аккаунт(ы). Данные сохраняются в `data/email_assistant.db`.
+При первом запуске:
+- создаётся пользователь
+- добавляется Gmail‑аккаунт
 
-## Команды CLI
-```
-help
-accounts
-add-account
-scan [account|all]
-manual list
-manual keep <account> <email_id>
-manual junk <account> <email_id>
-stats
-exit
-```
+## Примеры фраз
+- "привет что у меня по почте"
+- "покажи важные"
+- "удали спам"
+- "скан"
+- "статистика"
 
 ## Безопасность
-- DRY RUN включен по умолчанию в `src/config.py`
-- Авто‑удаление только для junk с высокой уверенностью
+- DRY_RUN включён по умолчанию
+- удаления требуют подтверждения
 - LLM получает редактированные данные
-- Unsubscribe URL проходит проверку безопасности
+- Unsubscribe URL проверяются
 
 ## Тесты
 ```bash
